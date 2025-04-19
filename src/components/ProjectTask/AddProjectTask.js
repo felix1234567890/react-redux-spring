@@ -10,7 +10,7 @@ function AddProjectTask(props) {
   const [formData, setFormData] = useState({
     summary: "",
     acceptanceCriteria: "",
-    status: ""
+    status: "TO_DO" // Set default status to TO_DO
   });
   const [errors, setErrors] = useState({});
 
@@ -46,7 +46,7 @@ function AddProjectTask(props) {
               Back to Board
             </Link>
             <h4 className="display-4 text-center">
-              Add /Update Project Task
+              Add Project Task
             </h4>
             <form onSubmit={onSubmit}>
               <div className="form-group mb-3">
@@ -73,19 +73,8 @@ function AddProjectTask(props) {
                   onChange={onChange}
                 />
               </div>
-              <div className="form-group mb-3">
-                <select
-                  className="form-control form-control-lg"
-                  name="status"
-                  value={formData.status}
-                  onChange={onChange}
-                >
-                  <option value="">Select Status</option>
-                  <option value="TO_DO">TO DO</option>
-                  <option value="IN_PROGRESS">IN PROGRESS</option>
-                  <option value="DONE">DONE</option>
-                </select>
-              </div>
+              {/* Hidden input for status - always set to TO_DO for new tasks */}
+              <input type="hidden" name="status" value={formData.status} />
               <input
                 type="submit"
                 className="btn btn-primary w-100 mt-4"

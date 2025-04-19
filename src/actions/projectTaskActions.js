@@ -51,16 +51,17 @@ export const getAllTasks = () => async dispatch => {
 };
 
 export const deleteProjectTask = pt_id => async dispatch => {
-  if (window.confirm("Are you sure?")) {
-    try {
-      await axios.delete(`http://localhost:8080/api/board/${pt_id}`);
-      dispatch({
-        type: DELETE_PROJECT_TASK,
-        payload: pt_id
-      });
-    } catch (error) {
-      console.error("Error deleting task:", error);
-    }
+  try {
+    await axios.delete(`http://localhost:8080/api/board/${pt_id}`);
+    dispatch({
+      type: DELETE_PROJECT_TASK,
+      payload: pt_id
+    });
+
+    // Refresh the task list after deletion
+    dispatch(getAllTasks());
+  } catch (error) {
+    console.error("Error deleting task:", error);
   }
 };
 

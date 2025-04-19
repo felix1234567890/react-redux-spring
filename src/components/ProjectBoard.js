@@ -5,7 +5,9 @@ import PropTypes from "prop-types";
 import React, { useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { Link } from "react-router-dom";
+import { deleteColumn, getColumns } from "../actions/columnActions";
 import { addProjectTask, deleteProjectTask, getAllTasks } from "../actions/projectTaskActions";
+import AddColumn from "./Column/AddColumn";
 
 // Sortable task item component
 function SortableTaskItem({ task, containerId, onDelete }) {
@@ -75,7 +77,7 @@ function SortableTaskItem({ task, containerId, onDelete }) {
 }
 
 // Droppable container component
-function DroppableContainer({ id, title, tasks, className, onDeleteTask }) {
+function DroppableContainer({ id, title, tasks, className, isDefault, onDeleteTask, onDeleteColumn }) {
   // Create a sortable context for this container
   const { setNodeRef } = useSortable({
     id: id,
@@ -88,8 +90,19 @@ function DroppableContainer({ id, title, tasks, className, onDeleteTask }) {
   return (
     <div className="col">
       <div className="card h-100">
-        <div className={`card-header ${className} text-white text-center`}>
-          <h3>{title}</h3>
+        <div className={`card-header ${className} text-white`}>
+          <div className="d-flex justify-content-between align-items-center">
+            <h3 className="mb-0">{title}</h3>
+            {!isDefault && (
+              <button
+                className="btn btn-sm btn-light"
+                onClick={() => onDeleteColumn(id)}
+                title="Delete Column"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            )}
+          </div>
         </div>
         <div
           ref={setNodeRef}
@@ -117,8 +130,14 @@ function DroppableContainer({ id, title, tasks, className, onDeleteTask }) {
 
 function ProjectBoard(props) {
   // Destructure props to avoid dependency warnings
-  const { getAllTasks, addProjectTask, deleteProjectTask, tasksArray = [] } = props;
+  const { getAllTasks, addProjectTask, deleteProjectTask, deleteColumn, getColumns, tasksArray = [], columnsArray = [] } = props;
   const [activeTask, setActiveTask] = useState(null);
+  // State for delete confirmation modal
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  // State for add column modal
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  // State for column to delete confirmation
+  const [columnToDelete, setColumnToDelete] = useState(null);
 
   // Set up sensors for drag detection
   const sensors = useSensors(
@@ -129,21 +148,29 @@ function ProjectBoard(props) {
   );
 
   useEffect(() => {
-    // Fetch tasks on mount
+    // Fetch tasks and columns on mount
     getAllTasks();
-  }, [getAllTasks]);
+    getColumns();
+  }, [getAllTasks, getColumns]);
 
-  // Derive task arrays directly from props
-  const todoTasks = tasksArray.filter(task => task.status === "TO_DO");
-  const inProgressTasks = tasksArray.filter(task => task.status === "IN_PROGRESS");
-  const doneTasks = tasksArray.filter(task => task.status === "DONE");
+  // Generate columns with tasks
+  const columns = columnsArray.map(column => ({
+    ...column,
+    tasks: tasksArray.filter(task => task.status === column.id)
+  }));
 
-  // Define columns
-  const columns = [
-    { id: "TO_DO", title: "TO DO", tasks: todoTasks, className: "bg-secondary" },
-    { id: "IN_PROGRESS", title: "In Progress", tasks: inProgressTasks, className: "bg-primary" },
-    { id: "DONE", title: "Done", tasks: doneTasks, className: "bg-success" }
-  ];
+  // If no columns are defined yet, use default columns
+  if (columns.length === 0) {
+    const todoTasks = tasksArray.filter(task => task.status === "TO_DO");
+    const inProgressTasks = tasksArray.filter(task => task.status === "IN_PROGRESS");
+    const doneTasks = tasksArray.filter(task => task.status === "DONE");
+
+    columns.push(
+      { id: "TO_DO", title: "TO DO", tasks: todoTasks, className: "bg-secondary", isDefault: true },
+      { id: "IN_PROGRESS", title: "In Progress", tasks: inProgressTasks, className: "bg-primary", isDefault: true },
+      { id: "DONE", title: "Done", tasks: doneTasks, className: "bg-success", isDefault: true }
+    );
+  }
 
   // Handle drag start
   const handleDragStart = (event) => {
@@ -222,19 +249,68 @@ function ProjectBoard(props) {
     getAllTasks();
   };
 
-  // Handle task deletion
+  // Handle task deletion - show confirmation modal
   const handleDeleteTask = (taskId) => {
-    deleteProjectTask(taskId);
+    // Find the task to delete
+    const task = tasksArray.find(t => String(t.id) === String(taskId));
+    if (task) {
+      setTaskToDelete(task);
+    }
+  };
+
+  // Handle column deletion - show confirmation modal
+  const handleDeleteColumn = (columnId) => {
+    // Find the column to delete
+    const column = columnsArray.find(c => c.id === columnId);
+    if (column && !column.isDefault) {
+      setColumnToDelete(column);
+    }
+  };
+
+  // Confirm task deletion
+  const confirmDeleteTask = () => {
+    if (taskToDelete) {
+      deleteProjectTask(taskToDelete.id);
+      setTaskToDelete(null); // Close the modal
+    }
+  };
+
+  // Confirm column deletion
+  const confirmDeleteColumn = () => {
+    if (columnToDelete) {
+      // Check if there are tasks in this column
+      const tasksInColumn = tasksArray.filter(task => task.status === columnToDelete.id);
+
+      // Delete all tasks in this column
+      if (tasksInColumn.length > 0) {
+        tasksInColumn.forEach(task => {
+          deleteProjectTask(task.id);
+        });
+      }
+
+      // Delete the column
+      deleteColumn(columnToDelete.id);
+      setColumnToDelete(null); // Close the modal
+    }
+  };
+
+  // Cancel deletion
+  const cancelDelete = () => {
+    setTaskToDelete(null);
+    setColumnToDelete(null);
   };
 
   return (
     <div className="container">
-      <Link to="/addProjectTask" className="btn btn-primary mb-3">
-        <i className="fas fa-plus-circle"> Create Project Task</i>
-      </Link>
-      <br />
+      <div className="d-flex justify-content-between mb-3">
+        <Link to="/addProjectTask" className="btn btn-primary">
+          <i className="fas fa-plus-circle"> Create Project Task</i>
+        </Link>
+        <button className="btn btn-success" onClick={() => setShowAddColumnModal(true)}>
+          <i className="fas fa-plus-circle"> Add Column</i>
+        </button>
+      </div>
       <hr />
-
       {tasksArray.length === 0 ? (
         <div className="alert alert-info text-center" role="alert">
           No Project Tasks on this board
@@ -255,7 +331,9 @@ function ProjectBoard(props) {
                   title={column.title}
                   tasks={column.tasks}
                   className={column.className}
+                  isDefault={column.isDefault}
                   onDeleteTask={handleDeleteTask}
+                  onDeleteColumn={handleDeleteColumn}
                 />
               ))}
             </div>
@@ -283,6 +361,79 @@ function ProjectBoard(props) {
           </DragOverlay>
         </DndContext>
       )}
+
+      {/* Delete Task Confirmation Modal */}
+      {taskToDelete && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header bg-danger text-white">
+                <h5 className="modal-title">Confirm Delete Task</h5>
+                <button type="button" className="btn-close" onClick={cancelDelete}></button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete this task?</p>
+                <div className="card mb-2">
+                  <div className="card-header text-primary">ID: {taskToDelete.id}</div>
+                  <div className="card-body">
+                    <h5 className="card-title">{taskToDelete.summary}</h5>
+                  </div>
+                </div>
+                <p className="text-danger"><strong>This action cannot be undone.</strong></p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={cancelDelete}>Cancel</button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeleteTask}>Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Column Confirmation Modal */}
+      {columnToDelete && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header bg-danger text-white">
+                <h5 className="modal-title">Confirm Delete Column</h5>
+                <button type="button" className="btn-close" onClick={cancelDelete}></button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete this column?</p>
+                <div className="card mb-2">
+                  <div className={`card-header ${columnToDelete.className} text-white`}>
+                    <h5 className="mb-0">{columnToDelete.title}</h5>
+                  </div>
+                </div>
+                <p className="text-danger"><strong>Warning:</strong> All tasks in this column will also be deleted.</p>
+                <p className="text-danger"><strong>This action cannot be undone.</strong></p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={cancelDelete}>Cancel</button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeleteColumn}>Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Column Modal */}
+      {showAddColumnModal && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header bg-success text-white">
+                <h5 className="modal-title">Add New Column</h5>
+                <button type="button" className="btn-close" onClick={() => setShowAddColumnModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <AddColumn onClose={() => setShowAddColumnModal(false)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -291,15 +442,19 @@ ProjectBoard.propTypes = {
   getAllTasks: PropTypes.func.isRequired,
   addProjectTask: PropTypes.func.isRequired,
   deleteProjectTask: PropTypes.func.isRequired,
-  tasksArray: PropTypes.array.isRequired // Updated prop type
+  deleteColumn: PropTypes.func.isRequired,
+  getColumns: PropTypes.func.isRequired,
+  tasksArray: PropTypes.array.isRequired,
+  columnsArray: PropTypes.array.isRequired
 };
 
-// Map only the necessary array from the Redux state
+// Map state to props
 const mapStateToProps = state => ({
-  tasksArray: state.projectTasks.projectTasks || []
+  tasksArray: state.projectTasks.projectTasks || [],
+  columnsArray: state.columns.columns || []
 });
 
 export default connect(
   mapStateToProps,
-  { getAllTasks, addProjectTask, deleteProjectTask }
+  { getAllTasks, addProjectTask, deleteProjectTask, deleteColumn, getColumns }
 )(ProjectBoard);
