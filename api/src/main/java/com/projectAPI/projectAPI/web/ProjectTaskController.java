@@ -9,7 +9,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,11 +46,18 @@ public class ProjectTaskController {
     @GetMapping("/{pt_id}")
     public ResponseEntity<?> getPTById(@PathVariable Long pt_id ){
       ProjectTask projectTask = projectTaskService.findById(pt_id);
+      if (projectTask == null) {
+          return new ResponseEntity<String>("Project task not found", HttpStatus.NOT_FOUND);
+      }
       return new ResponseEntity<ProjectTask>(projectTask, HttpStatus.OK);
     };
 
     @DeleteMapping("/{pt_id}")
     public ResponseEntity<?> deleteProjectTask(@PathVariable Long pt_id){
+        ProjectTask projectTask = projectTaskService.findById(pt_id);
+        if (projectTask == null) {
+            return new ResponseEntity<String>("Project task not found", HttpStatus.NOT_FOUND);
+        }
         projectTaskService.delete(pt_id);
         return new ResponseEntity<String>("Project task deleted", HttpStatus.OK);
     }

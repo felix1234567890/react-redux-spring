@@ -30,3 +30,30 @@
     transform: rotate(360deg);
   }
 }
+
+/* Drag and Drop Styles */
+.task-list {
+  padding: 8px;
+  transition: background-color 0.2s ease;
+  min-height: 100px;
+}
+
+.task-list.dragging-over {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.draggable-task {
+  margin-bottom: 8px;
+  cursor: grab;
+}
+
+.draggable-task:active {
+  cursor: grabbing;
+}
+
+.draggable-task.dragging {
+  background-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}

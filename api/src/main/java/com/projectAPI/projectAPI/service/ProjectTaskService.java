@@ -4,6 +4,7 @@ import com.projectAPI.projectAPI.domain.ProjectTask;
 import com.projectAPI.projectAPI.repository.ProjectTaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ProjectTaskService {
@@ -21,12 +22,21 @@ public class ProjectTaskService {
     public Iterable<ProjectTask> findAll(){
         return projectTaskRepository.findAll();
     }
+
+    @Transactional
     public ProjectTask findById(Long id){
-        return projectTaskRepository.getById(id);
+        try {
+            return projectTaskRepository.getById(id);
+        } catch (Exception e) {
+            return null;
+        }
     }
+
     public void delete(Long id){
         ProjectTask projectTask = findById(id);
-        projectTaskRepository.delete(projectTask);
+        if (projectTask != null) {
+            projectTaskRepository.delete(projectTask);
+        }
     }
 }
 

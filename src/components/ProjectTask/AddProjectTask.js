@@ -1,104 +1,101 @@
-import React, { Component } from "react";
-import { Link } from "react-router-dom";
-import PropTypes from "prop-types";
-import { connect } from "react-redux";
-import { addProjectTask } from "../../actions/projectTaskActions";
 import classnames from "classnames";
+import PropTypes from "prop-types";
+import React, { useEffect, useState } from "react";
+import { connect } from "react-redux";
+import { Link, useNavigate } from "react-router-dom";
+import { addProjectTask } from "../../actions/projectTaskActions";
 
-class AddProjectTask extends Component {
-  constructor() {
-    super();
-    this.state = {
-      summary: "",
-      acceptanceCriteria: "",
-      status: "",
-      errors: {}
-    };
-    this.onChange = this.onChange.bind(this);
-    this.onSubmit = this.onSubmit.bind(this);
-  }
-  componentWillReceiveProps(nextProps) {
-    if (nextProps.errors) {
-      this.setState({ errors: nextProps.errors });
+function AddProjectTask(props) {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    summary: "",
+    acceptanceCriteria: "",
+    status: ""
+  });
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (props.errors) {
+      setErrors(props.errors);
     }
-  }
-  onChange(e) {
-    this.setState({
+  }, [props.errors]);
+
+  const onChange = (e) => {
+    setFormData({
+      ...formData,
       [e.target.name]: e.target.value
     });
-  }
-  onSubmit(e) {
+  };
+
+  const onSubmit = (e) => {
     e.preventDefault();
     const newProjectTask = {
-      summary: this.state.summary,
-      acceptanceCriteria: this.state.acceptanceCriteria,
-      status: this.state.status
+      summary: formData.summary,
+      acceptanceCriteria: formData.acceptanceCriteria,
+      status: formData.status
     };
-    this.props.addProjectTask(newProjectTask, this.props.history);
-  }
+    props.addProjectTask(newProjectTask, navigate);
+  };
 
-  render() {
-    const { errors } = this.state;
-    return (
-      <div className="addProjectTask">
-        <div className="container">
-          <div className="row">
-            <div className="col-md-8 m-auto">
-              <Link to="/" className="btn btn-light">
-                Back to Board
-              </Link>
-              <h4 className="display-4 text-center">
-                Add /Update Project Task
-              </h4>
-              <form onSubmit={this.onSubmit}>
-                <div className="form-group">
-                  <input
-                    type="text"
-                    className={classnames("form-control form-control-lg", {
-                      "is-invalid": errors.summary
-                    })}
-                    name="summary"
-                    value={this.state.summary}
-                    placeholder="Project Task summary"
-                    onChange={this.onChange}
-                  />
-                  {errors.summary && (
-                    <div className="invalid-feedback">{errors.summary}</div>
-                  )}
-                </div>
-                <div className="form-group">
-                  <textarea
-                    className="form-control form-control-lg"
-                    placeholder="Acceptance Criteria"
-                    name="acceptanceCriteria"
-                    value={this.state.acceptanceCriteria}
-                    onChange={this.onChange}
-                  />
-                </div>
-                <div className="form-group">
-                  <select
-                    className="form-control form-control-lg"
-                    name="status"
-                    value={this.state.status}
-                    onChange={this.onChange}
-                  >
-                    <option value="">Select Status</option>
-                    <option value="TO_DO">TO DO</option>
-                    <option value="IN_PROGRESS">IN PROGRESS</option>
-                    <option value="DONE">DONE</option>
-                  </select>
-                </div>
+  return (
+    <div className="addProjectTask">
+      <div className="container">
+        <div className="row">
+          <div className="col-md-8 m-auto">
+            <Link to="/" className="btn btn-light">
+              Back to Board
+            </Link>
+            <h4 className="display-4 text-center">
+              Add /Update Project Task
+            </h4>
+            <form onSubmit={onSubmit}>
+              <div className="form-group mb-3">
                 <input
-                  type="submit"
-                  className="btn btn-primary btn-block mt-4"
+                  type="text"
+                  className={classnames("form-control form-control-lg", {
+                    "is-invalid": errors.summary
+                  })}
+                  name="summary"
+                  value={formData.summary}
+                  placeholder="Project Task summary"
+                  onChange={onChange}
                 />
-              </form>
-            </div>
+                {errors.summary && (
+                  <div className="invalid-feedback">{errors.summary}</div>
+                )}
+              </div>
+              <div className="form-group mb-3">
+                <textarea
+                  className="form-control form-control-lg"
+                  placeholder="Acceptance Criteria"
+                  name="acceptanceCriteria"
+                  value={formData.acceptanceCriteria}
+                  onChange={onChange}
+                />
+              </div>
+              <div className="form-group mb-3">
+                <select
+                  className="form-control form-control-lg"
+                  name="status"
+                  value={formData.status}
+                  onChange={onChange}
+                >
+                  <option value="">Select Status</option>
+                  <option value="TO_DO">TO DO</option>
+                  <option value="IN_PROGRESS">IN PROGRESS</option>
+                  <option value="DONE">DONE</option>
+                </select>
+              </div>
+              <input
+                type="submit"
+                className="btn btn-primary w-100 mt-4"
+              />
+            </form>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 }
 AddProjectTask.propTypes = {
   addProjectTask: PropTypes.func.isRequired,
