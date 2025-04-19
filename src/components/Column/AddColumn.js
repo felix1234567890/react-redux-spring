@@ -1,9 +1,9 @@
 import PropTypes from "prop-types";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { addColumn } from "../../actions/columnActions";
 
-function AddColumn({ addColumn, onClose, columns = [] }) {
+function AddColumn({ addColumn, onClose, columns = [], errors = {} }) {
   // Get all colors that are already used by existing columns
   const usedColors = columns.map(column => column.className);
 
@@ -30,6 +30,10 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
     className: defaultColor
   });
 
+  // State for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+
   const onChange = (e) => {
     const { name, value } = e.target;
 
@@ -49,25 +53,66 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
     }
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
 
+    // Reset errors
+    setFormErrors({});
+
     // Validate form
-    if (!formData.title.trim() || !formData.id.trim()) {
+    const errors = {};
+    if (!formData.title.trim()) {
+      errors.title = "Title is required";
+    }
+    if (!formData.id.trim()) {
+      errors.id = "ID is required";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
 
-    // Add the new column
-    addColumn(formData);
+    // Set submitting state
+    setIsSubmitting(true);
 
-    // Close the modal
-    if (onClose) {
-      onClose();
+    try {
+      // Add the new column
+      const success = await addColumn(formData);
+
+      // If successful, close the modal
+      if (success && onClose) {
+        onClose();
+      }
+    } catch (error) {
+      console.error("Error adding column:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // If no colors are available, add a message
   const noColorsAvailable = availableColors.length === 0;
+
+  // Check for API errors from Redux
+  useEffect(() => {
+    if (errors && Object.keys(errors).length > 0) {
+      // Map API errors to form errors
+      const apiErrors = {};
+
+      // Handle specific error messages
+      if (errors.title) {
+        apiErrors.title = errors.title;
+      }
+
+      if (Object.keys(apiErrors).length > 0) {
+        setFormErrors(prevErrors => ({
+          ...prevErrors,
+          ...apiErrors
+        }));
+      }
+    }
+  }, [errors]);
 
   return (
     <div className="add-column-form">
@@ -76,14 +121,16 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
           <label htmlFor="title">Column Title</label>
           <input
             type="text"
-            className="form-control"
+            className={`form-control ${formErrors.title ? 'is-invalid' : ''}`}
             id="title"
             name="title"
             value={formData.title}
             onChange={onChange}
             placeholder="Enter column title"
-            required
           />
+          {formErrors.title && (
+            <div className="invalid-feedback">{formErrors.title}</div>
+          )}
         </div>
         {/* Hidden input for ID */}
         <input
@@ -92,6 +139,9 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
           name="id"
           value={formData.id}
         />
+        {formErrors.id && (
+          <div className="alert alert-danger">{formErrors.id}</div>
+        )}
         <div className="form-group mb-3">
           <label htmlFor="className">Column Color</label>
           {noColorsAvailable ? (
@@ -100,7 +150,7 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
             </div>
           ) : (
             <select
-              className="form-control"
+              className={`form-control ${formErrors.className ? 'is-invalid' : ''}`}
               id="className"
               name="className"
               value={formData.className}
@@ -111,13 +161,25 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
               ))}
             </select>
           )}
+          {formErrors.className && (
+            <div className="invalid-feedback">{formErrors.className}</div>
+          )}
         </div>
         <div className="d-flex justify-content-between">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={noColorsAvailable}>
-            Add Column
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={noColorsAvailable || isSubmitting}
+          >
+            {isSubmitting ? 'Adding...' : 'Add Column'}
           </button>
         </div>
       </form>
@@ -128,11 +190,13 @@ function AddColumn({ addColumn, onClose, columns = [] }) {
 AddColumn.propTypes = {
   addColumn: PropTypes.func.isRequired,
   onClose: PropTypes.func,
-  columns: PropTypes.array
+  columns: PropTypes.array,
+  errors: PropTypes.object
 };
 
 const mapStateToProps = state => ({
-  columns: state.columns.columns || []
+  columns: state.columns.columns || [],
+  errors: state.errors
 });
 
 export default connect(mapStateToProps, { addColumn })(AddColumn);
