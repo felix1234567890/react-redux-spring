@@ -1,21 +1,13 @@
-import { applyMiddleware, compose, createStore } from 'redux'
-import { thunk } from 'redux-thunk'
+import { configureStore } from '@reduxjs/toolkit'
 import rootReducer from './reducers'
 
-const initialState = {}
-const middleware =[thunk]
-
-const devTools = window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__()
-let store;
-
-if(window.navigator.userAgent.includes('Chrome') && devTools){
-    store = createStore(rootReducer,
-                         initialState,
-                           compose(applyMiddleware(...middleware),devTools))
-} else {
-    store = createStore(rootReducer,
-        initialState,
-          applyMiddleware(...middleware))
-}
+const store = configureStore({
+  reducer: rootReducer,
+  // Redux Toolkit includes thunk middleware by default
+  // so we don't need to add it manually
+  preloadedState: {},
+  // Enable Redux DevTools Extension automatically
+  devTools: process.env.NODE_ENV !== 'production',
+})
 
 export default store

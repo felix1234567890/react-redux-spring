@@ -10,7 +10,7 @@ const initialState = {
   projectTasks: [],
   projectTask: {}
 };
-export default function(state = initialState, action) {
+const projectTaskReducer = function(state = initialState, action) {
   switch (action.type) {
     case GET_PROJECT_TASKS:
       return {
@@ -44,4 +44,6 @@ export default function(state = initialState, action) {
     default:
       return state;
   }
-}
+};
+
+export default projectTaskReducer;

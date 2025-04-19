@@ -6,6 +6,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { addProjectTask, getProjectTask } from "../../actions/projectTaskActions";
 
 function UpdateProjectTask(props) {
+  // Destructure props to avoid dependency warnings
+  const { getProjectTask, addProjectTask, projectTask, errors: propsErrors } = props;
   const { pt_id } = useParams();
   const navigate = useNavigate();
 
@@ -18,16 +20,16 @@ function UpdateProjectTask(props) {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    props.getProjectTask(pt_id, navigate);
-  }, [pt_id, props.getProjectTask, navigate]);
+    getProjectTask(pt_id, navigate);
+  }, [pt_id, getProjectTask, navigate]);
 
   useEffect(() => {
-    if (props.errors) {
-      setErrors(props.errors);
+    if (propsErrors) {
+      setErrors(propsErrors);
     }
 
-    if (props.projectTask) {
-      const { id, summary, acceptanceCriteria, status } = props.projectTask;
+    if (projectTask) {
+      const { id, summary, acceptanceCriteria, status } = projectTask;
       setFormData({
         id: id || "",
         summary: summary || "",
@@ -35,7 +37,7 @@ function UpdateProjectTask(props) {
         status: status || ""
       });
     }
-  }, [props.errors, props.projectTask]);
+  }, [propsErrors, projectTask]);
 
   const onChange = (e) => {
     setFormData({
@@ -52,7 +54,7 @@ function UpdateProjectTask(props) {
       acceptanceCriteria: formData.acceptanceCriteria,
       status: formData.status
     };
-    props.addProjectTask(updatedTask, navigate);
+    addProjectTask(updatedTask, navigate);
   };
 
   return (

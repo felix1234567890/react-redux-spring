@@ -1,68 +1,231 @@
+import { closestCorners, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import PropTypes from "prop-types";
-import React, { useEffect } from "react";
-import { DragDropContext, Draggable, Droppable } from "react-beautiful-dnd";
+import React, { useEffect, useState } from "react";
 import { connect } from "react-redux";
 import { Link } from "react-router-dom";
-import { addProjectTask, getAllTasks } from "../actions/projectTaskActions";
+import { addProjectTask, deleteProjectTask, getAllTasks } from "../actions/projectTaskActions";
+
+// Sortable task item component
+function SortableTaskItem({ task, containerId, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `task-${task.id}`,
+    data: {
+      task,
+      containerId
+    }
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  // Handle delete button click
+  const handleDelete = (e) => {
+    // Stop propagation to prevent drag events
+    e.stopPropagation();
+    // Call the delete function
+    onDelete(task.id);
+  };
+
+  // Handle view/update button click
+  const handleViewUpdate = (e) => {
+    // Stop propagation to prevent drag events
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`draggable-task ${isDragging ? 'dragging' : ''}`}
+      data-task-id={task.id}
+      data-container-id={containerId}
+    >
+      <div className="card mb-1 bg-light">
+        {/* Apply drag handlers only to the header and title areas */}
+        <div className="card-header text-primary" {...attributes} {...listeners}>ID: {task.id}</div>
+        <div className="card-body bg-light">
+          <h5 className="card-title" {...attributes} {...listeners}>{task.summary}</h5>
+          <p className="card-text text-truncate" {...attributes} {...listeners}>
+            {task.acceptanceCriteria}
+          </p>
+          <div className="d-flex justify-content-between">
+            <Link
+              to={`/updateProjectTask/${task.id}`}
+              className="btn btn-primary"
+              onClick={handleViewUpdate}
+            >
+              View / Update
+            </Link>
+            <button
+              className="btn btn-danger"
+              onClick={handleDelete}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Droppable container component
+function DroppableContainer({ id, title, tasks, className, onDeleteTask }) {
+  // Create a sortable context for this container
+  const { setNodeRef } = useSortable({
+    id: id,
+    data: {
+      type: 'container',
+      containerId: id
+    }
+  });
+
+  return (
+    <div className="col">
+      <div className="card h-100">
+        <div className={`card-header ${className} text-white text-center`}>
+          <h3>{title}</h3>
+        </div>
+        <div
+          ref={setNodeRef}
+          className="card-body task-list"
+          data-droppable-id={id}
+        >
+          <SortableContext
+            id={id}
+            items={tasks.map(task => `task-${task.id}`)}
+          >
+            {tasks.map((task) => (
+              <SortableTaskItem
+                key={`task-${task.id}`}
+                task={task}
+                containerId={id}
+                onDelete={onDeleteTask}
+              />
+            ))}
+          </SortableContext>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ProjectBoard(props) {
-  // Removed local state for task arrays. Will derive directly from props.
+  // Destructure props to avoid dependency warnings
+  const { getAllTasks, addProjectTask, deleteProjectTask, tasksArray = [] } = props;
+  const [activeTask, setActiveTask] = useState(null);
+
+  // Set up sensors for drag detection
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     // Fetch tasks on mount
-    props.getAllTasks();
-  }, [props.getAllTasks]); // Dependency array ensures this runs only once on mount
+    getAllTasks();
+  }, [getAllTasks]);
 
-  // Removed useEffect that derived local state from props.
+  // Derive task arrays directly from props
+  const todoTasks = tasksArray.filter(task => task.status === "TO_DO");
+  const inProgressTasks = tasksArray.filter(task => task.status === "IN_PROGRESS");
+  const doneTasks = tasksArray.filter(task => task.status === "DONE");
 
-  const onDragEnd = result => {
-    // Drag end handler
-    const { destination, source, draggableId } = result;
+  // Define columns
+  const columns = [
+    { id: "TO_DO", title: "TO DO", tasks: todoTasks, className: "bg-secondary" },
+    { id: "IN_PROGRESS", title: "In Progress", tasks: inProgressTasks, className: "bg-primary" },
+    { id: "DONE", title: "Done", tasks: doneTasks, className: "bg-success" }
+  ];
 
-    // If there's no destination or if the item was dropped back in the same place
-    if (!destination ||
-        (destination.droppableId === source.droppableId &&
-         destination.index === source.index)) {
+  // Handle drag start
+  const handleDragStart = (event) => {
+    const { active } = event;
+    const taskId = active.id.split('-')[1];
+    const task = tasksArray.find(t => String(t.id) === taskId);
+    setActiveTask(task);
+  };
+
+  // Handle drag end
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    setActiveTask(null);
+
+    if (!over) {
       return;
     }
 
-    // Get the task ID from the draggableId
-    const taskId = parseInt(draggableId.split('-')[1]);
+    // Get data from the active and over elements
+    const activeId = active.id;
 
-    // Find the task directly in the mapped props.tasksArray
-    const tasksArray = props.tasksArray || []; // Use the mapped array
-    const taskIdStr = String(taskId);
-    const task = tasksArray.find(t => String(t.id) === taskIdStr);
+    // Find the container ID from the over element
+    let overContainerId;
+
+    // Try to get the container ID from the over element's data
+    if (over.data?.current?.containerId) {
+      overContainerId = over.data.current.containerId;
+    }
+    // If over is a task, get its container
+    else if (over.id.startsWith('task-')) {
+      // Find the task's container from the columns data
+      for (const column of columns) {
+        if (column.tasks.some(task => `task-${task.id}` === over.id)) {
+          overContainerId = column.id;
+          break;
+        }
+      }
+    }
+    // If over is a container
+    else {
+      // Try to match the over.id with a column id
+      const matchingColumn = columns.find(col => col.id === over.id);
+      if (matchingColumn) {
+        overContainerId = matchingColumn.id;
+      }
+    }
+
+    // If we couldn't determine the target container, exit
+    if (!overContainerId) {
+      return;
+    }
+
+    // Get the task ID from the active.id
+    const taskId = activeId.split('-')[1];
+    const task = tasksArray.find(t => String(t.id) === taskId);
 
     if (!task) {
-      // Corrected error message to reference props.tasksArray
-      // Task not found in array
+      return;
+    }
+
+    // If the task is already in this container, no need to update
+    if (task.status === overContainerId) {
       return;
     }
 
     // Update the task status
     const updatedTask = {
       ...task,
-      status: destination.droppableId
+      status: overContainerId
     };
 
     // Update the task in the database
-    // This action will dispatch UPDATE_PROJECT_TASK_SUCCESS
-    // triggering the reducer and then the useEffect hook.
-    props.addProjectTask(updatedTask);
+    addProjectTask(updatedTask);
 
-    // Removed direct local state updates to rely on Redux as the single source of truth.
-    // Removed direct local state updates to rely on Redux as the single source of truth.
+    // Update the UI immediately
+    getAllTasks();
   };
 
-  // Derive task arrays directly from props within the render logic
-  // Use the tasksArray prop directly (mapped from state.projectTasks.projectTasks)
-  const tasksArray = props.tasksArray || [];
-  const todoTasks = tasksArray.filter(task => task.status === "TO_DO");
-  const inProgressTasks = tasksArray.filter(task => task.status === "IN_PROGRESS");
-  const doneTasks = tasksArray.filter(task => task.status === "DONE"); // Corrected to use tasksArray
-
-  // Derived arrays for rendering
+  // Handle task deletion
+  const handleDeleteTask = (taskId) => {
+    deleteProjectTask(taskId);
+  };
 
   return (
     <div className="container">
@@ -72,165 +235,62 @@ function ProjectBoard(props) {
       <br />
       <hr />
 
-      {tasksArray.length === 0 ? ( // Check the mapped array
+      {tasksArray.length === 0 ? (
         <div className="alert alert-info text-center" role="alert">
           No Project Tasks on this board
         </div>
       ) : (
-        <DragDropContext onDragEnd={onDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
           <div className="container">
-            <div className="row">
-              <div className="col-md-4">
-                <div className="card text-center mb-2">
-                  <div className="card-header bg-secondary text-white">
-                    <h3>TO DO</h3>
-                  </div>
-                </div>
-                <Droppable droppableId="TO_DO" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`task-list ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
-                    >
-                      {todoTasks.map((task, index) => (
-                        <Draggable
-                          key={`task-${task.id}`} // Ensure key and draggableId are identical strings
-                          draggableId={`task-${task.id}`}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`draggable-task ${snapshot.isDragging ? 'dragging' : ''}`}
-                            >
-                              <div className="card mb-1 bg-light">
-                                <div className="card-header text-primary">ID: {task.id}</div>
-                                <div className="card-body bg-light">
-                                  <h5 className="card-title">{task.summary}</h5>
-                                  <p className="card-text text-truncate">
-                                    {task.acceptanceCriteria}
-                                  </p>
-                                  <Link to={`/updateProjectTask/${task.id}`} className="btn btn-primary">
-                                    View / Update
-                                  </Link>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-              <div className="col-md-4">
-                <div className="card text-center mb-2">
-                  <div className="card-header bg-primary text-white">
-                    <h3>In Progress</h3>
-                  </div>
-                </div>
-                <Droppable droppableId="IN_PROGRESS" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`task-list ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
-                    >
-                      {inProgressTasks.map((task, index) => (
-                        <Draggable
-                          key={`task-${task.id}`} // Ensure key and draggableId are identical strings
-                          draggableId={`task-${task.id}`}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`draggable-task ${snapshot.isDragging ? 'dragging' : ''}`}
-                            >
-                              <div className="card mb-1 bg-light">
-                                <div className="card-header text-primary">ID: {task.id}</div>
-                                <div className="card-body bg-light">
-                                  <h5 className="card-title">{task.summary}</h5>
-                                  <p className="card-text text-truncate">
-                                    {task.acceptanceCriteria}
-                                  </p>
-                                  <Link to={`/updateProjectTask/${task.id}`} className="btn btn-primary">
-                                    View / Update
-                                  </Link>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-              <div className="col-md-4">
-                <div className="card text-center mb-2">
-                  <div className="card-header bg-success text-white">
-                    <h3>Done</h3>
-                  </div>
-                </div>
-                <Droppable droppableId="DONE" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`task-list ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
-                    >
-                      {doneTasks.map((task, index) => (
-                        <Draggable
-                          key={`task-${task.id}`} // Ensure key and draggableId are identical strings
-                          draggableId={`task-${task.id}`}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`draggable-task ${snapshot.isDragging ? 'dragging' : ''}`}
-                            >
-                              <div className="card mb-1 bg-light">
-                                <div className="card-header text-primary">ID: {task.id}</div>
-                                <div className="card-body bg-light">
-                                  <h5 className="card-title">{task.summary}</h5>
-                                  <p className="card-text text-truncate">
-                                    {task.acceptanceCriteria}
-                                  </p>
-                                  <Link to={`/updateProjectTask/${task.id}`} className="btn btn-primary">
-                                    View / Update
-                                  </Link>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
+            <div className="row row-cols-1 row-cols-md-3 g-4">
+              {columns.map(column => (
+                <DroppableContainer
+                  key={column.id}
+                  id={column.id}
+                  title={column.title}
+                  tasks={column.tasks}
+                  className={column.className}
+                  onDeleteTask={handleDeleteTask}
+                />
+              ))}
             </div>
           </div>
-        </DragDropContext>
+          <DragOverlay>
+            {activeTask ? (
+              <div className="card mb-1 bg-light">
+                <div className="card-header text-primary">ID: {activeTask.id}</div>
+                <div className="card-body bg-light">
+                  <h5 className="card-title">{activeTask.summary}</h5>
+                  <p className="card-text text-truncate">
+                    {activeTask.acceptanceCriteria}
+                  </p>
+                  <div className="d-flex justify-content-between">
+                    <button className="btn btn-primary" disabled>
+                      View / Update
+                    </button>
+                    <button className="btn btn-danger" disabled>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
     </div>
   );
 }
+
 ProjectBoard.propTypes = {
   getAllTasks: PropTypes.func.isRequired,
   addProjectTask: PropTypes.func.isRequired,
+  deleteProjectTask: PropTypes.func.isRequired,
   tasksArray: PropTypes.array.isRequired // Updated prop type
 };
 
@@ -241,5 +301,5 @@ const mapStateToProps = state => ({
 
 export default connect(
   mapStateToProps,
-  { getAllTasks, addProjectTask }
+  { getAllTasks, addProjectTask, deleteProjectTask }
 )(ProjectBoard);
